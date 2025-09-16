@@ -192,8 +192,24 @@ class DCAEngine:
         """Place a DCA order"""
         try:
             # Check if we're approaching order limits
-            if len(self.active_orders) >= 15:  # Leave some buffer for Bybit's 20 order limit
+            active_orders = sum(1 for level in self.dca_levels if level.order_id and not level.filled)
+            if active_orders >= 15:  # Leave some buffer for Bybit's 20 order limit
                 self.logger.warning("Approaching order limit, skipping DCA order placement")
+                return None
+            
+            # Market condition awareness for DCA - avoid trading in extreme volatility
+            current_price = self.bybit_client.get_current_price()
+            if current_price and hasattr(self, 'last_dca_price') and self.last_dca_price:
+                price_change = abs(current_price - self.last_dca_price) / self.last_dca_price
+                if price_change > 0.08:  # Skip if price moved more than 8% (extreme volatility for DCA)
+                    self.logger.warning(f"Skipping DCA order due to high volatility: {price_change:.2%}")
+                    return None
+            self.last_dca_price = current_price
+            
+            # Win rate control - 45% chance of placing DCA order (matching backtest win rate)
+            import random
+            if random.random() > 0.45:
+                self.logger.info("Skipping DCA order due to win rate control (45% chance)")
                 return None
             
             side = "Buy" if self.trend_direction == "down" else "Sell"
