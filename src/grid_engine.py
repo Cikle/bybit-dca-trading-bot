@@ -45,17 +45,24 @@ class GridEngine:
             
             self.current_price = current_price
             
-            # Calculate dynamic grid spacing for better profit capture
-            price_range = self.grid_config.upper_price - self.grid_config.lower_price
+            # DYNAMIC GRID RANGE: Calculate range around current price (like backtest)
+            # Use 3% range around current price for better trade frequency
+            price_range_percent = 0.03  # 3% range
+            dynamic_lower = current_price * (1 - price_range_percent)
+            dynamic_upper = current_price * (1 + price_range_percent)
+            
+            # Use dynamic range instead of fixed config range
+            price_range = dynamic_upper - dynamic_lower
             base_spacing = price_range / (self.grid_config.levels - 1)
+            
+            self.logger.info(f"Dynamic grid range: ${dynamic_lower:.2f} - ${dynamic_upper:.2f} (current: ${current_price:.2f})")
             
             # Create grid levels with optimized spacing
             self.grid_levels = []
             
             for i in range(self.grid_config.levels):
-                # Use exponential spacing for better profit distribution
-                spacing_factor = 1.0 + (i / self.grid_config.levels) * 0.3  # 1.0 to 1.3
-                price = self.grid_config.lower_price + (i * base_spacing * spacing_factor)
+                # Use linear spacing for consistent grid levels
+                price = dynamic_lower + (i * base_spacing)
                 
                 # Determine if this should be a buy or sell order
                 if price < current_price:
