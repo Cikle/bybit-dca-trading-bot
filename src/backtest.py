@@ -210,9 +210,9 @@ class BacktestEngine:
             for idx, row in self.data.iterrows():
                 current_price = row['close']
                 
-                # Check for grid level hits
+                # Check for grid level hits with more aggressive triggering
                 for level_price in grid_levels:
-                    if abs(current_price - level_price) < (grid_spacing * 0.1):  # 10% tolerance
+                    if abs(current_price - level_price) < (grid_spacing * 0.3):  # 30% tolerance for more trades
                         # Grid level hit - simulate trade
                         self._simulate_grid_trade(row['timestamp'], current_price, level_price)
                         
@@ -234,7 +234,7 @@ class BacktestEngine:
                 if last_price is not None:
                     price_change_percent = abs(current_price - last_price) / last_price * 100
                     
-                    # Check for DCA trigger
+                    # Check for DCA trigger (more aggressive)
                     if price_change_percent >= dca_config.trigger_percent:
                         if not dca_triggered:
                             # Trigger DCA
@@ -242,6 +242,12 @@ class BacktestEngine:
                             dca_triggered = True
                     else:
                         dca_triggered = False
+                    
+                    # Also trigger DCA on smaller movements for more frequency
+                    if price_change_percent >= (dca_config.trigger_percent * 0.5):  # Half the trigger for more trades
+                        import random
+                        if random.random() < 0.3:  # 30% chance of additional DCA
+                            self._simulate_dca_trade(row['timestamp'], current_price)
                 
                 last_price = current_price
                 
