@@ -172,6 +172,9 @@ class BacktestEngine:
             # Calculate results
             result = self._calculate_results()
             
+            # Display individual trade details
+            self._display_trade_details()
+            
             # Log results
             self.logger.log_backtest_result(
                 self.backtest_config.start_date,
@@ -392,6 +395,35 @@ class BacktestEngine:
         except Exception as e:
             self.logger.error(f"Error calculating results: {e}")
             raise
+    
+    def _display_trade_details(self):
+        """Display individual trade details for transparency"""
+        try:
+            self.logger.info("=" * 60)
+            self.logger.info("INDIVIDUAL TRADE DETAILS")
+            self.logger.info("=" * 60)
+            
+            # Show first 10 and last 10 trades
+            total_trades = len(self.trades)
+            if total_trades <= 20:
+                trades_to_show = self.trades
+            else:
+                trades_to_show = self.trades[:10] + ["... (showing first 10 and last 10 trades) ..."] + self.trades[-10:]
+            
+            for i, trade in enumerate(trades_to_show):
+                if trade == "... (showing first 10 and last 10 trades) ...":
+                    self.logger.info(trade)
+                    continue
+                    
+                pnl_color = "GREEN" if trade.pnl > 0 else "RED"
+                self.logger.info(f"Trade #{i+1:3d} | {trade.trade_type:4s} | {trade.side:4s} | "
+                               f"Entry: ${trade.entry_price:8.2f} | Exit: ${trade.exit_price:8.2f} | "
+                               f"PnL: ${trade.pnl:8.2f} | {pnl_color}")
+            
+            self.logger.info("=" * 60)
+            
+        except Exception as e:
+            self.logger.error(f"Error displaying trade details: {e}")
     
     def get_trade_history(self) -> List[Trade]:
         """Get trade history"""
