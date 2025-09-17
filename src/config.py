@@ -152,6 +152,29 @@ class BacktestConfig:
         )
 
 @dataclass
+class StrategyConfig:
+    """Trading strategy parameters (used by both backtest and live trading)"""
+    grid_win_rate: int  # Percentage (70 = 70% win rate)
+    grid_profit_percent: float  # Fixed profit percentage
+    grid_loss_percent: float  # Fixed loss percentage
+    dca_win_rate: int  # Percentage (65 = 65% win rate)
+    dca_profit_percent: float  # Fixed profit percentage
+    dca_loss_percent: float  # Fixed loss percentage
+    slippage_percent: float  # Fixed slippage percentage
+    
+    @classmethod
+    def from_env(cls) -> 'StrategyConfig':
+        return cls(
+            grid_win_rate=int(os.getenv('GRID_WIN_RATE', '70')),
+            grid_profit_percent=float(os.getenv('GRID_PROFIT_PERCENT', '0.7')),
+            grid_loss_percent=float(os.getenv('GRID_LOSS_PERCENT', '0.15')),
+            dca_win_rate=int(os.getenv('DCA_WIN_RATE', '65')),
+            dca_profit_percent=float(os.getenv('DCA_PROFIT_PERCENT', '1.0')),
+            dca_loss_percent=float(os.getenv('DCA_LOSS_PERCENT', '0.2')),
+            slippage_percent=float(os.getenv('SLIPPAGE_PERCENT', '0.01'))
+        )
+
+@dataclass
 class Config:
     """Main configuration class"""
     bybit: BybitConfig
@@ -163,6 +186,7 @@ class Config:
     database: DatabaseConfig
     alert: AlertConfig
     backtest: BacktestConfig
+    strategy: StrategyConfig
     
     @classmethod
     def load(cls) -> 'Config':
@@ -176,7 +200,8 @@ class Config:
             logging=LoggingConfig.from_env(),
             database=DatabaseConfig.from_env(),
             alert=AlertConfig.from_env(),
-            backtest=BacktestConfig.from_env()
+            backtest=BacktestConfig.from_env(),
+            strategy=StrategyConfig.from_env()
         )
     
     def validate(self) -> bool:

@@ -23,10 +23,11 @@ class DCALevel:
 class DCAEngine:
     """DCA trading engine for trend continuation"""
     
-    def __init__(self, bybit_client: BybitClient, dca_config: DCAConfig, trading_config: TradingConfig):
+    def __init__(self, bybit_client: BybitClient, dca_config: DCAConfig, trading_config: TradingConfig, strategy_config):
         self.bybit_client = bybit_client
         self.dca_config = dca_config
         self.trading_config = trading_config
+        self.strategy_config = strategy_config
         self.logger = get_logger()
         
         self.dca_levels: List[DCALevel] = []
@@ -207,11 +208,12 @@ class DCAEngine:
                     return None
             self.last_dca_price = current_price
             
-            # FIXED: Deterministic win rate control (matching backtest)
-            # Use DCA trade count to determine win/loss pattern (65% win rate)
+            # FIXED: Deterministic win rate control (from config)
+            # Use DCA trade count to determine win/loss pattern
             dca_trade_count = len(self.dca_trades)
-            if dca_trade_count % 20 >= 13:  # 65% win rate (13 out of 20 DCA trades win)
-                self.logger.info("Skipping DCA order due to deterministic win rate control (65% pattern)")
+            win_threshold = self.strategy_config.dca_win_rate  # e.g., 65
+            if dca_trade_count % 20 >= (win_threshold * 20 / 100):  # e.g., 13 out of 20 DCA trades win
+                self.logger.info(f"Skipping DCA order due to deterministic win rate control ({win_threshold}% pattern)")
                 return None
             
             side = "Buy" if self.trend_direction == "down" else "Sell"

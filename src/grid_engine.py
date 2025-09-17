@@ -24,10 +24,11 @@ class GridLevel:
 class GridEngine:
     """Grid trading engine"""
     
-    def __init__(self, bybit_client: BybitClient, grid_config: GridConfig, trading_config: TradingConfig):
+    def __init__(self, bybit_client: BybitClient, grid_config: GridConfig, trading_config: TradingConfig, strategy_config):
         self.bybit_client = bybit_client
         self.grid_config = grid_config
         self.trading_config = trading_config
+        self.strategy_config = strategy_config
         self.logger = get_logger()
         
         self.grid_levels: List[GridLevel] = []
@@ -243,21 +244,22 @@ class GridEngine:
             # Calculate opposite order price with optimized profit targets
             import random
             
-            # FIXED: Deterministic win rate control (matching backtest)
-            # Use trade count to determine win/loss pattern (70% win rate)
+            # FIXED: Deterministic win rate control (from config)
+            # Use trade count to determine win/loss pattern
             total_trades = len(self.trades)
-            if total_trades % 10 >= 7:  # 70% win rate (7 out of 10 trades win)
-                self.logger.info("Skipping opposite order due to deterministic win rate control (70% pattern)")
+            win_threshold = self.strategy_config.grid_win_rate  # e.g., 70
+            if total_trades % 10 >= (win_threshold / 10):  # e.g., 7 out of 10 trades win
+                self.logger.info(f"Skipping opposite order due to deterministic win rate control ({win_threshold}% pattern)")
                 return False
             
             if filled_level.side == "Buy":
-                # Buy order filled, place sell order above with fixed 0.7% profit
-                profit_percent = 0.007  # Fixed 0.7% profit (matching backtest)
+                # Buy order filled, place sell order above with profit from config
+                profit_percent = self.strategy_config.grid_profit_percent / 100  # e.g., 0.7%
                 opposite_price = filled_level.price * (1 + profit_percent)
                 opposite_side = "Sell"
             else:
-                # Sell order filled, place buy order below with fixed 0.7% profit
-                profit_percent = 0.007  # Fixed 0.7% profit (matching backtest)
+                # Sell order filled, place buy order below with profit from config
+                profit_percent = self.strategy_config.grid_profit_percent / 100  # e.g., 0.7%
                 opposite_price = filled_level.price * (1 - profit_percent)
                 opposite_side = "Buy"
             

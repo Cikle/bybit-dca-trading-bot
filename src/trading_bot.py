@@ -22,8 +22,8 @@ class TradingBot:
         
         # Initialize components
         self.bybit_client = BybitClient(config.bybit, config.trading)
-        self.grid_engine = GridEngine(self.bybit_client, config.grid, config.trading)
-        self.dca_engine = DCAEngine(self.bybit_client, config.dca, config.trading)
+        self.grid_engine = GridEngine(self.bybit_client, config.grid, config.trading, config.strategy)
+        self.dca_engine = DCAEngine(self.bybit_client, config.dca, config.trading, config.strategy)
         self.risk_manager = RiskManager(self.bybit_client, config.risk, config.trading)
         
         # Bot state

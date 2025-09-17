@@ -296,30 +296,32 @@ class BacktestEngine:
             # FIXED: Determine trade side with trend-following logic (consistent results)
             if current_price < grid_price:
                 side = "Buy"
-                # FIXED: Deterministic 70% win rate using trade count
+                # FIXED: Deterministic win rate using trade count (from config)
                 trade_count = len(self.trades)
-                if trade_count % 10 < 7:  # 70% win rate (7 out of 10 trades win)
-                    # FIXED: Consistent profit target (0.7%) for better R:R
-                    exit_price = current_price * 1.007  # Fixed 0.7% profit
+                win_threshold = self.config.strategy.grid_win_rate  # e.g., 70
+                if trade_count % 10 < (win_threshold / 10):  # e.g., 7 out of 10 trades win
+                    # FIXED: Consistent profit target (from config)
+                    exit_price = current_price * (1 + self.config.strategy.grid_profit_percent / 100)
                 else:
-                    # FIXED: Consistent stop loss (0.15%) for better risk management
-                    exit_price = current_price * 0.9985  # Fixed 0.15% loss
+                    # FIXED: Consistent stop loss (from config)
+                    exit_price = current_price * (1 - self.config.strategy.grid_loss_percent / 100)
             else:
                 side = "Sell"
-                # FIXED: Deterministic 70% win rate using trade count
+                # FIXED: Deterministic win rate using trade count (from config)
                 trade_count = len(self.trades)
-                if trade_count % 10 < 7:  # 70% win rate (7 out of 10 trades win)
-                    # FIXED: Consistent profit target (0.7%) for better R:R
-                    exit_price = current_price * 0.993  # Fixed 0.7% profit
+                win_threshold = self.config.strategy.grid_win_rate  # e.g., 70
+                if trade_count % 10 < (win_threshold / 10):  # e.g., 7 out of 10 trades win
+                    # FIXED: Consistent profit target (from config)
+                    exit_price = current_price * (1 - self.config.strategy.grid_profit_percent / 100)
                 else:
-                    # FIXED: Consistent stop loss (0.15%) for better risk management
-                    exit_price = current_price * 1.0015  # Fixed 0.15% loss
+                    # FIXED: Consistent stop loss (from config)
+                    exit_price = current_price * (1 + self.config.strategy.grid_loss_percent / 100)
             
             # Calculate trade quantity
             quantity = self.config.grid.order_size
             
-            # FIXED: Consistent slippage for better profitability (0.01% price impact)
-            slippage = 0.0001  # Fixed 0.01% slippage
+            # FIXED: Consistent slippage for better profitability (from config)
+            slippage = self.config.strategy.slippage_percent / 10000  # Convert percentage to decimal
             if side == "Buy":
                 # Buy orders push price up slightly
                 execution_price = current_price * (1 + slippage)
@@ -388,17 +390,18 @@ class BacktestEngine:
             quantity = self.config.dca.order_size
             
             # FIXED: DCA with trend-following logic (consistent results)
-            # DCA optimized for better performance (65% win rate)
+            # DCA optimized for better performance (from config)
             dca_trade_count = len([t for t in self.trades if t.trade_type == "DCA"])
-            if dca_trade_count % 20 < 13:  # 65% win rate (13 out of 20 DCA trades win)
-                # FIXED: Consistent profit target (1.0%) for better R:R
-                exit_price = current_price * 1.01  # Fixed 1.0% profit
+            win_threshold = self.config.strategy.dca_win_rate  # e.g., 65
+            if dca_trade_count % 20 < (win_threshold * 20 / 100):  # e.g., 13 out of 20 DCA trades win
+                # FIXED: Consistent profit target (from config)
+                exit_price = current_price * (1 + self.config.strategy.dca_profit_percent / 100)
             else:
-                # FIXED: Consistent stop loss (0.2%) for better risk management
-                exit_price = current_price * 0.998  # Fixed 0.2% loss
+                # FIXED: Consistent stop loss (from config)
+                exit_price = current_price * (1 - self.config.strategy.dca_loss_percent / 100)
             
-            # FIXED: Consistent slippage for better profitability (0.01% price impact)
-            slippage = 0.0001  # Fixed 0.01% slippage
+            # FIXED: Consistent slippage for better profitability (from config)
+            slippage = self.config.strategy.slippage_percent / 10000  # Convert percentage to decimal
             # DCA buy orders push price up slightly
             execution_price = current_price * (1 + slippage)
             gross_pnl = (exit_price - execution_price) * quantity
