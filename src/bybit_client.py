@@ -104,6 +104,53 @@ class BybitClient:
             self.logger.error(f"Error getting price: {e}")
             return None
     
+    def get_recent_prices(self, limit: int = 100) -> Optional[List[float]]:
+        """Get recent price data for grid calculation (like backtest)"""
+        try:
+            import requests
+            
+            # Use public API to get recent kline data
+            url = "https://api.bybit.com/v5/market/kline"
+            params = {
+                "category": "linear",
+                "symbol": self.trading_config.symbol,
+                "interval": "60",  # 1 hour intervals
+                "limit": limit
+            }
+            
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                if data['retCode'] == 0 and data['result']['list']:
+                    # Extract close prices
+                    prices = [float(kline[4]) for kline in data['result']['list']]  # Close price is index 4
+                    return prices
+                else:
+                    self.logger.error(f"API error getting recent prices: {data.get('retMsg', 'Unknown error')}")
+                    return None
+            else:
+                self.logger.error(f"Failed to fetch recent prices: {response.status_code}")
+                return None
+        except Exception as e:
+            self.logger.error(f"Error getting recent prices: {e}")
+            return None
+    
+    def get_open_orders(self) -> Optional[List[Dict[str, Any]]]:
+        """Get all open orders"""
+        try:
+            response = self.http_client.get_open_orders(
+                category="linear",
+                symbol=self.trading_config.symbol
+            )
+            if response['retCode'] == 0:
+                return response['result']['list']
+            else:
+                self.logger.error(f"Failed to get open orders: {response['retMsg']}")
+                return None
+        except Exception as e:
+            self.logger.error(f"Error getting open orders: {e}")
+            return None
+    
     def place_order(self, side: str, order_type: str, qty: float, price: Optional[float] = None, 
                    time_in_force: str = "GTC") -> Optional[str]:
         """Place an order"""

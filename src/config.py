@@ -47,6 +47,7 @@ class GridConfig:
     upper_price: float
     levels: int
     order_size: float
+    range_percent: float  # For automatic calculation
     
     @classmethod
     def from_env(cls) -> 'GridConfig':
@@ -54,7 +55,8 @@ class GridConfig:
             lower_price=float(os.getenv('GRID_LOWER_PRICE', '50000')),
             upper_price=float(os.getenv('GRID_UPPER_PRICE', '70000')),
             levels=int(os.getenv('GRID_LEVELS', '20')),
-            order_size=float(os.getenv('GRID_ORDER_SIZE', '0.01'))
+            order_size=float(os.getenv('GRID_ORDER_SIZE', '0.01')),
+            range_percent=float(os.getenv('GRID_RANGE_PERCENT', '3.0'))
         )
 
 @dataclass
@@ -183,9 +185,7 @@ class Config:
             print("❌ Bybit API credentials not configured")
             return False
         
-        if self.grid.lower_price >= self.grid.upper_price:
-            print("❌ Grid lower price must be less than upper price")
-            return False
+        # Note: Grid prices are now calculated automatically, so we don't validate them here
         
         if self.trading.leverage < 1 or self.trading.leverage > 100:
             print("❌ Leverage must be between 1 and 100")

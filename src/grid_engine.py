@@ -45,24 +45,25 @@ class GridEngine:
             
             self.current_price = current_price
             
-            # DYNAMIC GRID RANGE: Calculate range around current price (like backtest)
-            # Use 3% range around current price for better trade frequency
-            price_range_percent = 0.03  # 3% range
-            dynamic_lower = current_price * (1 - price_range_percent)
-            dynamic_upper = current_price * (1 + price_range_percent)
+            # AUTOMATIC GRID CALCULATION: Exactly like backtest
+            # Use percentage range around CURRENT PRICE (not historical data)
+            price_range_percent = 0.03  # 3% range (hardcoded to fix the 300% bug)
+            grid_lower = current_price * (1 - price_range_percent)
+            grid_upper = current_price * (1 + price_range_percent)
             
-            # Use dynamic range instead of fixed config range
-            price_range = dynamic_upper - dynamic_lower
+            self.logger.info(f"Current price: ${current_price:.2f}")
+            self.logger.info(f"Grid range: ${grid_lower:.2f} - ${grid_upper:.2f} ({price_range_percent*100:.1f}% range)")
+            
+            # Calculate grid spacing
+            price_range = grid_upper - grid_lower
             base_spacing = price_range / (self.grid_config.levels - 1)
-            
-            self.logger.info(f"Dynamic grid range: ${dynamic_lower:.2f} - ${dynamic_upper:.2f} (current: ${current_price:.2f})")
             
             # Create grid levels with optimized spacing
             self.grid_levels = []
             
             for i in range(self.grid_config.levels):
-                # Use linear spacing for consistent grid levels
-                price = dynamic_lower + (i * base_spacing)
+                # Use linear spacing for consistent grid levels (like backtest)
+                price = grid_lower + (i * base_spacing)
                 
                 # Determine if this should be a buy or sell order
                 if price < current_price:
@@ -95,6 +96,9 @@ class GridEngine:
     def start_grid(self) -> bool:
         """Start the grid trading"""
         try:
+            # Cancel all existing orders first
+            self._cancel_all_orders()
+            
             if not self.grid_levels:
                 if not self.initialize_grid():
                     return False
@@ -145,6 +149,30 @@ class GridEngine:
             
         except Exception as e:
             self.logger.error(f"Error stopping grid: {e}")
+            return False
+    
+    def _cancel_all_orders(self) -> bool:
+        """Cancel all existing orders for the symbol"""
+        try:
+            # Get all open orders for the symbol
+            open_orders = self.bybit_client.get_open_orders()
+            if not open_orders:
+                return True
+            
+            cancelled_count = 0
+            for order in open_orders:
+                if order.get('symbol') == self.trading_config.symbol:
+                    order_id = order.get('orderId')
+                    if order_id and self.bybit_client.cancel_order(order_id):
+                        cancelled_count += 1
+            
+            if cancelled_count > 0:
+                self.logger.info(f"Cancelled {cancelled_count} existing orders")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error cancelling existing orders: {e}")
             return False
     
     def update_grid(self) -> bool:
