@@ -47,14 +47,44 @@ class GridEngine:
             
             self.current_price = current_price
             
-            # AUTOMATIC GRID CALCULATION: Exactly like backtest
-            # Use percentage range around CURRENT PRICE (not historical data)
-            price_range_percent = 0.03  # 3% range (hardcoded to fix the 300% bug)
-            grid_lower = current_price * (1 - price_range_percent)
-            grid_upper = current_price * (1 + price_range_percent)
+            # FIXED: Use same grid calculation as backtest
+            # Get historical price range for the last 24 hours to match backtest logic
+            try:
+                # Get historical data for grid range calculation (like backtest)
+                historical_data = self.bybit_client.get_klines(
+                    interval="60",  # 1 hour intervals
+                    limit=24  # Last 24 hours
+                )
+                
+                if historical_data and len(historical_data) > 0:
+                    # Kline format: [timestamp, open, high, low, close, volume, turnover]
+                    prices = [float(candle[4]) for candle in historical_data]  # Close prices
+                    price_min = min(prices)
+                    price_max = max(prices)
+                    price_range = price_max - price_min
+                    
+                    # Use same logic as backtest: 80% of actual price range
+                    grid_lower = price_min + (price_range * 0.1)  # 10% below min
+                    grid_upper = price_max - (price_range * 0.1)  # 10% above max
+                    
+                    self.logger.info(f"Historical price range: ${price_min:.2f} - ${price_max:.2f}")
+                else:
+                    # Fallback to current price range if historical data fails
+                    price_range_percent = 0.03
+                    grid_lower = current_price * (1 - price_range_percent)
+                    grid_upper = current_price * (1 + price_range_percent)
+                    self.logger.warning("Using fallback grid calculation (3% around current price)")
+                    
+            except Exception as e:
+                # Fallback to current price range if historical data fails
+                price_range_percent = 0.03
+                grid_lower = current_price * (1 - price_range_percent)
+                grid_upper = current_price * (1 + price_range_percent)
+                self.logger.warning(f"Using fallback grid calculation: {e}")
             
             self.logger.info(f"Current price: ${current_price:.2f}")
-            self.logger.info(f"Grid range: ${grid_lower:.2f} - ${grid_upper:.2f} ({price_range_percent*100:.1f}% range)")
+            grid_range_percent = ((grid_upper - grid_lower) / current_price) * 100
+            self.logger.info(f"Grid range: ${grid_lower:.2f} - ${grid_upper:.2f} ({grid_range_percent:.1f}% range)")
             
             # Calculate grid spacing
             price_range = grid_upper - grid_lower
