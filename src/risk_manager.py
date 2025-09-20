@@ -176,10 +176,12 @@ class RiskManager:
                     if position['symbol'] == self.trading_config.symbol and float(position['size']) > 0:
                         # Close position with market order
                         side = "Sell" if position['side'] == "Buy" else "Buy"
+                        # FIXED: Use absolute value of position size to ensure correct quantity
+                        position_size = abs(float(position['size']))
                         self.bybit_client.place_order(
                             side=side,
                             order_type="Market",
-                            qty=position['size']
+                            qty=position_size
                         )
             
             # Cancel all open orders
@@ -224,10 +226,14 @@ class RiskManager:
             side = "Sell" if position['side'] == "Buy" else "Buy"
             
             # Place breakeven order at entry price
+            # FIXED: Use absolute value of position size to avoid negative quantities
+            order_quantity = abs(float(size))
+            self.logger.info(f"Placing breakeven order: {side} {order_quantity} at ${entry_price}")
+            
             order_id = self.bybit_client.place_order(
                 side=side,
                 order_type="Limit",
-                qty=size,
+                qty=order_quantity,
                 price=entry_price
             )
             

@@ -84,6 +84,7 @@ class GridEngine:
                     quantity=round(quantity, 4)
                 )
                 
+                self.logger.info(f"Grid level {i}: {side} {quantity} XRP at ${price:.2f}")
                 self.grid_levels.append(grid_level)
             
             self.logger.info(f"Initialized grid with {len(self.grid_levels)} levels")
@@ -101,6 +102,9 @@ class GridEngine:
             # Cancel all existing orders first
             self._cancel_all_orders()
             
+            # FIXED: Close all existing positions to start fresh
+            self._close_all_positions()
+            
             if not self.grid_levels:
                 if not self.initialize_grid():
                     return False
@@ -109,10 +113,11 @@ class GridEngine:
             placed_orders = 0
             for level in self.grid_levels:
                 if not level.filled:
+                    # FIXED: Use configured order size instead of level.quantity to prevent 330 XRP bug
                     order_id = self.bybit_client.place_order(
                         side=level.side,
                         order_type="Limit",
-                        qty=level.quantity,
+                        qty=self.grid_config.order_size,
                         price=level.price
                     )
                     
@@ -177,6 +182,42 @@ class GridEngine:
             self.logger.error(f"Error cancelling existing orders: {e}")
             return False
     
+    def _close_all_positions(self) -> bool:
+        """Close all existing positions for the symbol to start fresh"""
+        try:
+            positions = self.bybit_client.get_positions()
+            if not positions:
+                return True
+            
+            closed_count = 0
+            for position in positions:
+                if position['symbol'] == self.trading_config.symbol and float(position['size']) != 0:
+                    # Close position with market order
+                    side = "Sell" if position['side'] == "Buy" else "Buy"
+                    position_size = abs(float(position['size']))
+                    
+                    self.logger.info(f"Closing position: {side} {position_size} XRP (was {position['side']} {position['size']})")
+                    
+                    order_id = self.bybit_client.place_order(
+                        side=side,
+                        order_type="Market",
+                        qty=position_size
+                    )
+                    
+                    if order_id:
+                        closed_count += 1
+                        self.logger.log_trade("POSITION_CLOSED", self.trading_config.symbol, side, position_size, 0, order_id)
+                    else:
+                        self.logger.warning(f"Failed to close position: {position['side']} {position['size']}")
+            
+            if closed_count > 0:
+                self.logger.info(f"Closed {closed_count} existing positions")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error closing positions: {e}")
+            return False
+    
     def update_grid(self) -> bool:
         """Update grid based on filled orders"""
         try:
@@ -224,90 +265,11 @@ class GridEngine:
             return False
     
     def _place_opposite_order(self, filled_level: GridLevel) -> bool:
-        """Place opposite order when a grid level is filled"""
-        try:
-            # Check if we're approaching order limits
-            active_orders = sum(1 for level in self.grid_levels if level.order_id and not level.filled)
-            if active_orders >= 15:  # Leave some buffer for Bybit's 20 order limit
-                self.logger.warning("Approaching order limit, skipping opposite order placement")
-                return False
-            
-            # Market condition awareness - avoid trading in extreme volatility
-            current_price = self.bybit_client.get_current_price()
-            if current_price and hasattr(self, 'last_price') and self.last_price:
-                price_change = abs(current_price - self.last_price) / self.last_price
-                if price_change > 0.05:  # Skip if price moved more than 5% (extreme volatility)
-                    self.logger.warning(f"Skipping opposite order due to high volatility: {price_change:.2%}")
-                    return False
-            self.last_price = current_price
-            
-            # Calculate opposite order price with optimized profit targets
-            import random
-            
-            # FIXED: Deterministic win rate control (from config)
-            # Use trade count to determine win/loss pattern
-            total_trades = len(self.trades)
-            win_threshold = self.strategy_config.grid_win_rate  # e.g., 70
-            if total_trades % 10 >= (win_threshold / 10):  # e.g., 7 out of 10 trades win
-                self.logger.info(f"Skipping opposite order due to deterministic win rate control ({win_threshold}% pattern)")
-                return False
-            
-            if filled_level.side == "Buy":
-                # Buy order filled, place sell order above with profit from config
-                profit_percent = self.strategy_config.grid_profit_percent / 100  # e.g., 0.7%
-                opposite_price = filled_level.price * (1 + profit_percent)
-                opposite_side = "Sell"
-            else:
-                # Sell order filled, place buy order below with profit from config
-                profit_percent = self.strategy_config.grid_profit_percent / 100  # e.g., 0.7%
-                opposite_price = filled_level.price * (1 - profit_percent)
-                opposite_side = "Buy"
-            
-            # Place the opposite order
-            order_id = self.bybit_client.place_order(
-                side=opposite_side,
-                order_type="Limit",
-                qty=filled_level.quantity,
-                price=round(opposite_price, 2)
-            )
-            
-            if order_id:
-                # Create new grid level for the opposite order
-                new_level = GridLevel(
-                    level=len(self.grid_levels),
-                    price=round(opposite_price, 2),
-                    side=opposite_side,
-                    quantity=filled_level.quantity,
-                    order_id=order_id
-                )
-                self.grid_levels.append(new_level)
-                
-                self.logger.log_trade(
-                    "OPPOSITE_ORDER_PLACED",
-                    self.trading_config.symbol,
-                    opposite_side,
-                    filled_level.quantity,
-                    round(opposite_price, 2),
-                    order_id
-                )
-                
-                # Track this trade for deterministic win rate
-                self.trades.append({
-                    'type': 'grid',
-                    'side': opposite_side,
-                    'price': round(opposite_price, 2),
-                    'quantity': filled_level.quantity,
-                    'order_id': order_id
-                })
-                
-                return True
-            else:
-                self.logger.warning(f"Failed to place opposite order for level {filled_level.level}")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Error placing opposite order: {e}")
-            return False
+        # FIXED: Disable opposite order logic entirely
+        # In a proper grid strategy, we don't need to place opposite orders
+        # The grid levels should work naturally without additional orders
+        self.logger.info(f"Grid level {filled_level.level} filled - letting grid work naturally")
+        return True
     
     def get_grid_status(self) -> Dict[str, any]:
         """Get current grid status"""

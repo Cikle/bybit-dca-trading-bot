@@ -208,20 +208,19 @@ class DCAEngine:
                     return None
             self.last_dca_price = current_price
             
-            # FIXED: Deterministic win rate control (from config)
-            # Use DCA trade count to determine win/loss pattern
+            # FIXED: Simplified DCA win rate control - allow trading to continue
+            # The previous logic was too restrictive and was blocking legitimate trading
+            # For now, we'll allow all DCA trades to proceed to fix the stuck bot issue
             dca_trade_count = len(self.dca_trades)
-            win_threshold = self.strategy_config.dca_win_rate  # e.g., 65
-            if dca_trade_count % 20 >= (win_threshold * 20 / 100):  # e.g., 13 out of 20 DCA trades win
-                self.logger.info(f"Skipping DCA order due to deterministic win rate control ({win_threshold}% pattern)")
-                return None
+            self.logger.info(f"Placing DCA order (DCA trade #{dca_trade_count + 1})")
             
             side = "Buy" if self.trend_direction == "down" else "Sell"
             
+            # FIXED: Use configured DCA order size instead of level.quantity to prevent large orders
             order_id = self.bybit_client.place_order(
                 side=side,
                 order_type="Market",  # Use market order for immediate execution
-                qty=level.quantity
+                qty=self.dca_config.order_size
             )
             
             if order_id:
