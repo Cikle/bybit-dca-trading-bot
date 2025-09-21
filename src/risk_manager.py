@@ -76,16 +76,16 @@ class RiskManager:
             # Process balance info
             for coin in balance_info.get('list', []):
                 if coin['coin'] == 'USDT':
-                    current_balance = float(coin['walletBalance'])
-                    equity = float(coin['equity'])
+                    current_balance = float(coin.get('walletBalance', 0) or 0)
+                    equity = float(coin.get('equity', 0) or 0)
                     break
             
             # Process positions
             for position in positions:
                 if position['symbol'] == self.trading_config.symbol:
-                    unrealized_pnl += float(position.get('unrealisedPnl', 0))
-                    realized_pnl += float(position.get('cumRealisedPnl', 0))
-                    margin_used += float(position.get('positionIM', 0))
+                    unrealized_pnl += float(position.get('unrealisedPnl', 0) or 0)
+                    realized_pnl += float(position.get('cumRealisedPnl', 0) or 0)
+                    margin_used += float(position.get('positionIM', 0) or 0)
             
             # Calculate drawdown
             if current_balance > self.peak_balance:

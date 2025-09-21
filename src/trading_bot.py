@@ -147,9 +147,9 @@ class TradingBot:
             if balance_info:
                 for coin in balance_info.get('list', []):
                     if coin['coin'] == 'USDT':
-                        balance = float(coin['walletBalance'])
-                        equity = float(coin['equity'])
-                        margin = float(coin['usedMargin'])
+                        balance = float(coin.get('walletBalance', 0) or 0)
+                        equity = float(coin.get('equity', 0) or 0)
+                        margin = float(coin.get('usedMargin', 0) or 0)
                         
                         self.logger.log_account_update(balance, equity, margin)
                         break
@@ -159,8 +159,8 @@ class TradingBot:
             if positions:
                 for position in positions:
                     if position['symbol'] == self.trading_config.symbol:
-                        unrealized_pnl = float(position.get('unrealisedPnl', 0))
-                        realized_pnl = float(position.get('cumRealisedPnl', 0))
+                        unrealized_pnl = float(position.get('unrealisedPnl', 0) or 0)
+                        realized_pnl = float(position.get('cumRealisedPnl', 0) or 0)
                         total_pnl = unrealized_pnl + realized_pnl
                         
                         self.logger.log_pnl(self.config.trading.symbol, unrealized_pnl, total_pnl)
