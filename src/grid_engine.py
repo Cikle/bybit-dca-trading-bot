@@ -256,10 +256,7 @@ class GridEngine:
             
             # Get current open orders
             open_orders = self.bybit_client.get_open_orders()
-            if not open_orders:
-                return True
-            
-            open_order_ids = {order['orderId'] for order in open_orders}
+            open_order_ids = {order['orderId'] for order in open_orders} if open_orders else set()
             
             # Check for filled orders and update grid
             filled_orders = 0
@@ -280,8 +277,14 @@ class GridEngine:
                         level.order_id
                     )
                     
-                    # Place opposite order
+                    # Place new grid orders
                     self._place_opposite_order(level)
+            
+            # Ensure we always have active orders
+            current_active_orders = len(open_order_ids)
+            if current_active_orders == 0:
+                self.logger.warning("No active orders found, placing new grid orders...")
+                self._ensure_active_orders()
             
             if filled_orders > 0:
                 active_orders = sum(1 for level in self.grid_levels if level.order_id and not level.filled)
@@ -295,11 +298,85 @@ class GridEngine:
             return False
     
     def _place_opposite_order(self, filled_level: GridLevel) -> bool:
-        # FIXED: Disable opposite order logic entirely
-        # In a proper grid strategy, we don't need to place opposite orders
-        # The grid levels should work naturally without additional orders
-        self.logger.info(f"Grid level {filled_level.level} filled - letting grid work naturally")
-        return True
+        """Place new grid orders to maintain continuous trading"""
+        try:
+            # Get current price to determine new grid levels
+            current_price = self.bybit_client.get_current_price()
+            if not current_price:
+                self.logger.error("Failed to get current price for new grid orders")
+                return False
+            
+            # Calculate new grid levels around current price
+            price_range_percent = 0.02  # 2% range
+            grid_lower = current_price * (1 - price_range_percent)
+            grid_upper = current_price * (1 + price_range_percent)
+            
+            # Place new buy order below current price
+            if current_price > grid_lower:
+                buy_price = round(grid_lower, 2)
+                buy_order_id = self.bybit_client.place_order(
+                    side="Buy",
+                    order_type="Limit",
+                    qty=self.grid_config.order_size,
+                    price=buy_price
+                )
+                if buy_order_id:
+                    self.logger.info(f"Placed new buy order at ${buy_price}")
+            
+            # Place new sell order above current price
+            if current_price < grid_upper:
+                sell_price = round(grid_upper, 2)
+                sell_order_id = self.bybit_client.place_order(
+                    side="Sell",
+                    order_type="Limit",
+                    qty=self.grid_config.order_size,
+                    price=sell_price
+                )
+                if sell_order_id:
+                    self.logger.info(f"Placed new sell order at ${sell_price}")
+            
+            self.logger.info(f"Grid level {filled_level.level} filled - placed new grid orders around ${current_price}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error placing new grid orders: {e}")
+            return False
+    
+    def _ensure_active_orders(self) -> bool:
+        """Ensure we always have active grid orders"""
+        try:
+            current_price = self.bybit_client.get_current_price()
+            if not current_price:
+                self.logger.error("Failed to get current price for ensuring active orders")
+                return False
+            
+            # Place buy order below current price
+            buy_price = round(current_price * 0.99, 2)  # 1% below current price
+            buy_order_id = self.bybit_client.place_order(
+                side="Buy",
+                order_type="Limit",
+                qty=self.grid_config.order_size,
+                price=buy_price
+            )
+            if buy_order_id:
+                self.logger.info(f"Ensured buy order at ${buy_price}")
+            
+            # Place sell order above current price
+            sell_price = round(current_price * 1.01, 2)  # 1% above current price
+            sell_order_id = self.bybit_client.place_order(
+                side="Sell",
+                order_type="Limit",
+                qty=self.grid_config.order_size,
+                price=sell_price
+            )
+            if sell_order_id:
+                self.logger.info(f"Ensured sell order at ${sell_price}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error ensuring active orders: {e}")
+            return False
     
     def get_grid_status(self) -> Dict[str, any]:
         """Get current grid status"""

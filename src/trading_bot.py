@@ -114,29 +114,55 @@ class TradingBot:
             return False
     
     def _main_loop(self):
-        """Main trading loop"""
+        """Main trading loop with improved error handling"""
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        
         try:
             while self.running:
-                # Check risk limits
-                if not self.risk_manager.check_risk_limits():
-                    self.logger.critical("Risk limits exceeded, stopping bot")
-                    self.running = False
-                    break
-                
-                # Update grid engine
-                self.grid_engine.update_grid()
-                
-                # Update DCA engine
-                self.dca_engine.update_dca()
-                
-                # Log account status
-                self._log_account_status()
-                
-                # Sleep before next update
-                time.sleep(self.update_interval)
+                try:
+                    # Ensure connection is active
+                    if not self.bybit_client.ensure_connected():
+                        self.logger.warning("Connection lost, skipping this iteration")
+                        time.sleep(self.update_interval)
+                        continue
+                    
+                    # Check risk limits
+                    if not self.risk_manager.check_risk_limits():
+                        self.logger.critical("Risk limits exceeded, stopping bot")
+                        self.running = False
+                        break
+                    
+                    # Update grid engine
+                    self.grid_engine.update_grid()
+                    
+                    # Update DCA engine
+                    self.dca_engine.update_dca()
+                    
+                    # Log account status
+                    self._log_account_status()
+                    
+                    # Reset error counter on successful iteration
+                    consecutive_errors = 0
+                    
+                    # Sleep before next update
+                    time.sleep(self.update_interval)
+                    
+                except Exception as e:
+                    consecutive_errors += 1
+                    self.logger.error(f"Error in main loop iteration {consecutive_errors}: {e}")
+                    
+                    # If too many consecutive errors, stop the bot
+                    if consecutive_errors >= max_consecutive_errors:
+                        self.logger.critical(f"Too many consecutive errors ({consecutive_errors}), stopping bot")
+                        self.running = False
+                        break
+                    
+                    # Wait longer before retrying after an error
+                    time.sleep(self.update_interval * 2)
                 
         except Exception as e:
-            self.logger.error(f"Error in main loop: {e}")
+            self.logger.error(f"Critical error in main loop: {e}")
             self.running = False
     
     def _log_account_status(self):
@@ -237,3 +263,36 @@ class TradingBot:
     def is_running(self) -> bool:
         """Check if bot is running"""
         return self.running
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Perform a comprehensive health check"""
+        try:
+            health_status = {
+                "bot_running": self.running,
+                "main_thread_alive": self.main_thread.is_alive() if self.main_thread else False,
+                "bybit_connected": self.bybit_client.is_connected(),
+                "grid_active": self.grid_engine.is_active(),
+                "dca_active": self.dca_engine.is_active(),
+                "risk_switch_triggered": self.risk_manager.is_kill_switch_triggered(),
+                "timestamp": time.time()
+            }
+            
+            # Test API connection
+            try:
+                balance = self.bybit_client.get_account_balance()
+                health_status["api_connection"] = balance is not None
+            except:
+                health_status["api_connection"] = False
+            
+            # Check for open orders
+            try:
+                orders = self.bybit_client.get_open_orders()
+                health_status["open_orders_count"] = len(orders) if orders else 0
+            except:
+                health_status["open_orders_count"] = -1
+            
+            return health_status
+            
+        except Exception as e:
+            self.logger.error(f"Error in health check: {e}")
+            return {"error": str(e), "timestamp": time.time()}

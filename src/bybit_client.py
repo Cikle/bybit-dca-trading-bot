@@ -37,20 +37,28 @@ class BybitClient:
         self._connected = False
     
     def connect(self) -> bool:
-        """Connect to Bybit API"""
-        try:
-            # Test connection with account info
-            account_info = self.http_client.get_wallet_balance(accountType="UNIFIED")
-            if account_info['retCode'] == 0:
-                self._connected = True
-                self.logger.info(f"Connected to Bybit {'Demo' if self.bybit_config.demo_mode else 'Live'}")
-                return True
-            else:
-                self.logger.error(f"Failed to connect to Bybit: {account_info['retMsg']}")
-                return False
-        except Exception as e:
-            self.logger.error(f"Connection error: {e}")
-            return False
+        """Connect to Bybit API with retry logic"""
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                # Test connection with account info
+                account_info = self.http_client.get_wallet_balance(accountType="UNIFIED")
+                if account_info['retCode'] == 0:
+                    self._connected = True
+                    self.logger.info(f"Connected to Bybit {'Demo' if self.bybit_config.demo_mode else 'Live'}")
+                    return True
+                else:
+                    self.logger.error(f"Failed to connect to Bybit (attempt {attempt + 1}): {account_info['retMsg']}")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            except Exception as e:
+                self.logger.error(f"Connection error (attempt {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+        
+        return False
     
     def disconnect(self):
         """Disconnect from Bybit API"""
@@ -313,3 +321,22 @@ class BybitClient:
     def is_connected(self) -> bool:
         """Check if client is connected"""
         return self._connected
+    
+    def ensure_connected(self) -> bool:
+        """Ensure connection is active, reconnect if needed"""
+        if not self._connected:
+            return self.connect()
+        
+        # Test connection with a simple API call
+        try:
+            response = self.http_client.get_wallet_balance(accountType="UNIFIED")
+            if response['retCode'] == 0:
+                return True
+            else:
+                self.logger.warning("Connection lost, attempting to reconnect...")
+                self._connected = False
+                return self.connect()
+        except Exception as e:
+            self.logger.warning(f"Connection test failed: {e}, attempting to reconnect...")
+            self._connected = False
+            return self.connect()
