@@ -4,18 +4,12 @@ Your trading bot will now **NEVER BREAK** and will automatically fix itself!
 
 ## 🚀 How to Start the Bulletproof Bot
 
-### Option 1: Simple Double-Click (Windows)
-Just double-click `start_bot_forever.bat` and your bot will run forever with auto-recovery!
-
-### Option 2: Command Line
+### Super Simple - Just One Command:
 ```bash
-python run_forever.py
+python main.py start
 ```
 
-### Option 3: Direct Auto-Recovery
-```bash
-python auto_recovery_bot.py
-```
+**That's it!** The bot will now run forever with auto-recovery built-in.
 
 ## 🛡️ What the Auto-Recovery System Does
 
@@ -59,7 +53,7 @@ This will show you:
 
 ### View Live Logs:
 ```bash
-Get-Content logs/trading_bot.log -Tail 20 -Wait
+tail -f logs/trading_bot.log
 ```
 
 ## 🔧 What Happens When Issues Occur
@@ -97,4 +91,4 @@ You'll know it's working when you see:
 
 **You never have to come back to me for fixing again!** 
 
-The bot will handle everything automatically and keep your grid trading strategy running 24/7.
+Just run `python main.py start` and the bot will handle everything automatically and keep your grid trading strategy running 24/7.

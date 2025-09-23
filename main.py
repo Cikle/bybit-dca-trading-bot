@@ -38,54 +38,122 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+def _restart_bot(current_bot: TradingBot, config: Config, reason: str) -> bool:
+    """Helper function to restart the bot"""
+    global bot
+    try:
+        console.print(f"🔄 [yellow]Restarting bot (reason: {reason})[/yellow]")
+        
+        # Stop current bot
+        current_bot.stop()
+        time.sleep(5)
+        
+        # Create new bot instance
+        bot = TradingBot(config)
+        
+        # Start new bot
+        if bot.start():
+            console.print("✅ [green]Bot restarted successfully![/green]")
+            return True
+        else:
+            console.print("❌ [red]Failed to restart bot[/red]")
+            return False
+            
+    except Exception as e:
+        console.print(f"❌ [red]Error restarting bot: {e}[/red]")
+        return False
+
 @app.command()
 def start(
     demo: bool = typer.Option(True, "--demo/--live", help="Run in demo mode (default) or live mode"),
     config_file: Optional[str] = typer.Option(None, "--config", help="Path to custom config file")
 ):
-    """Start the trading bot"""
+    """Start the trading bot with auto-recovery"""
     global bot
     
-    try:
-        # Load configuration
-        config = Config.load()
-        
-        # Override demo mode setting based on demo flag
-        config.bybit.demo_mode = demo
-        
-        # Validate configuration
-        if not config.validate():
-            console.print("[red]❌ Configuration validation failed[/red]")
-            raise typer.Exit(1)
-        
-        # Setup logger
-        setup_logger(config.logging)
-        
-        # Create and start bot
-        bot = TradingBot(config)
-        
-        # Display startup information
-        display_startup_info(config, demo)
-        
-        # Start the bot
-        if bot.start():
-            console.print("[green]✅ Bot started successfully![/green]")
-            console.print("[yellow]Press Ctrl+C to stop the bot[/yellow]")
+    console.print("🤖 [bold blue]Auto-Recovery Trading Bot Starting...[/bold blue]")
+    console.print("=" * 60)
+    console.print("🛡️ [green]Auto-recovery system enabled - bot will restart automatically if it crashes[/green]")
+    console.print("=" * 60)
+    
+    restart_count = 0
+    max_restarts_per_hour = 10
+    restart_times = []
+    
+    while True:
+        try:
+            restart_count += 1
+            current_time = time.strftime("%Y-%m-%d %H:%M:%S")
             
-            # Keep the main thread alive
-            try:
-                while bot.is_running():
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                console.print("\n[yellow]Stopping bot...[/yellow]")
+            console.print(f"\n🚀 [yellow]Starting bot (attempt #{restart_count}) - {current_time}[/yellow]")
+            
+            # Load configuration
+            config = Config.load()
+            
+            # Override demo mode setting based on demo flag
+            config.bybit.demo_mode = demo
+            
+            # Validate configuration
+            if not config.validate():
+                console.print("[red]❌ Configuration validation failed[/red]")
+                time.sleep(30)
+                continue
+            
+            # Setup logger
+            setup_logger(config.logging)
+            
+            # Create and start bot
+            bot = TradingBot(config)
+            
+            # Display startup information
+            display_startup_info(config, demo)
+            
+            # Start the bot
+            if bot.start():
+                console.print("[green]✅ Bot started successfully![/green]")
+                console.print("[yellow]Press Ctrl+C to stop the bot[/yellow]")
+                
+                # Keep the main thread alive with health monitoring
+                consecutive_errors = 0
+                max_consecutive_errors = 5
+                
+                try:
+                    while bot.is_running():
+                        # Health check every 30 seconds
+                        if not bot.health_check():
+                            console.print("[red]🚨 Health check failed, attempting recovery...[/red]")
+                            
+                            # Try to restart the bot
+                            if not _restart_bot(bot, config, "Health check failed"):
+                                consecutive_errors += 1
+                                if consecutive_errors >= max_consecutive_errors:
+                                    console.print("[red]❌ Too many consecutive errors, stopping[/red]")
+                                    break
+                            else:
+                                consecutive_errors = 0
+                        
+                        time.sleep(5)
+                        
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]Stopping bot...[/yellow]")
+                    bot.stop()
+                    break
+            else:
+                console.print("[red]❌ Failed to start bot[/red]")
+                time.sleep(30)
+                continue
+                
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Stopping bot...[/yellow]")
+            if bot:
                 bot.stop()
-        else:
-            console.print("[red]❌ Failed to start bot[/red]")
-            raise typer.Exit(1)
-            
-    except Exception as e:
-        console.print(f"[red]❌ Error: {e}[/red]")
-        raise typer.Exit(1)
+            break
+        except Exception as e:
+            console.print(f"[red]❌ Unexpected error: {e}[/red]")
+            time.sleep(30)
+            continue
+    
+    console.print("👋 [blue]Auto-Recovery Bot stopped[/blue]")
 
 @app.command()
 def stop():
