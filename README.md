@@ -1,6 +1,7 @@
 # Leveraged Grid + DCA Hybrid Trading Bot
 
 A sophisticated Python-based trading bot that combines leveraged grid trading with Dollar Cost Averaging (DCA) strategies for Bybit cryptocurrency exchange. Features automatic recovery, health monitoring, and robust error handling for 24/7 operation.
+(Only tested in Demo!)
 
 ## 🚀 Quick Start
 
