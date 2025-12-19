@@ -7,7 +7,7 @@ A sophisticated Python-based trading bot that combines leveraged grid trading wi
 
 ### 1. Clone and Setup
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Cikle/bybit-dca-trading-bot.git
 cd dca
 python setup.py
 ```
